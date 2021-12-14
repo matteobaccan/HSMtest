@@ -16,7 +16,12 @@ import com.ncipher.nfast.marshall.M_Cmd_Args_NoOp;
 import com.ncipher.nfast.marshall.M_Command;
 import com.ncipher.nfast.marshall.M_Reply;
 import com.ncipher.nfast.marshall.M_Status;
+import com.ncipher.nfast.marshall.Marshallable;
+import com.ncipher.nfast.marshall.PrintoutContext;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintWriter;
 import java.util.Arrays;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -51,15 +56,11 @@ public class HSMfeature {
 
             // NoOp
             M_Cmd_Args_NoOp commandArgsNoOp = new M_Cmd_Args_NoOp(modules[0].getID());
-            M_Command mCommandNoOp = new M_Command(M_Cmd.NoOp, 0, commandArgsNoOp);
-            M_Reply mReplyNoOp = sendCommand(nFConnection, mCommandNoOp);
-            log.info("NoOp [{}]", mReplyNoOp);
+            sendCommand("NoOp", nFConnection, new M_Command(M_Cmd.NoOp, 0, commandArgsNoOp));
 
-            // MeMList
-            M_Cmd_Args_NVMemList commandArgs = new M_Cmd_Args_NVMemList(modules[0].getID(), 0);
-            M_Command mCommand = new M_Command(M_Cmd.NVMemList, 0, commandArgs);
-            M_Reply mReply = sendCommand(nFConnection, mCommand);
-            log.info("NVMMemList [{}]", mReply);
+            // MemList
+            M_Cmd_Args_NVMemList commandArgsNVMemList = new M_Cmd_Args_NVMemList(modules[0].getID(), 0);
+            sendCommand("NVMMemList", nFConnection, new M_Command(M_Cmd.NVMemList, 0, commandArgsNVMemList));
         } catch (NFException nFException) {
             log.info("NFException", nFException);
         }
@@ -67,15 +68,34 @@ public class HSMfeature {
         log.info("End test");
     }
 
-    private static M_Reply sendCommand(final NFConnection nFConnection, final M_Command mCommand) throws NFException {
-        log.info("Command [{}]", mCommand.toString());
+    private static M_Reply sendCommand(final String command, final NFConnection nFConnection, final M_Command mCommand) throws NFException {
+        log.info("Command [{}] ------------------------------------", command);
+        log.info("Command args [{}]", mapParameter(mCommand.args));
+        log.info("Command certs [{}]", mCommand.certs);
+        log.info("Command cmd [{}]", mCommand.cmd);
+        log.info("Command extractstate [{}]", mCommand.extractstate);
+        log.info("Command flags [{}]", mCommand.flags);
+        log.info("Command services [{}]", mCommand.services);
+        log.info("Command state [{}]", mCommand.state);
+        log.info("Command status [{}]", mCommand.status);
+        log.info("Command tag [{}]", mapParameter(mCommand.tag));
         M_Reply reply = nFConnection.transact(mCommand);
         if (reply.status == M_Status.OK) {
-            log.info("Reply [{}]", reply.reply);
+            log.info("Reply [{}]", mapParameter(reply.reply));
         } else {
             throw new NFException(M_Status.toString(reply.status));
         }
         return reply;
     }
 
+    private static final String mapParameter(final Marshallable marshallable) {
+        return Optional.ofNullable(marshallable).map(mapper -> {
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            PrintWriter printWriter = new PrintWriter(byteArrayOutputStream);
+            PrintoutContext printoutContext = new PrintoutContext(printWriter);
+            mapper.printout(printoutContext);
+            printWriter.flush();
+            return byteArrayOutputStream.toString();
+        }).orElse("");
+    }
 }
