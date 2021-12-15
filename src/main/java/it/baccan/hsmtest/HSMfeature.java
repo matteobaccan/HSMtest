@@ -71,8 +71,11 @@ public class HSMfeature {
         log.info("Start test");
 
         try {
+            // Connessione diretta per comandi
+            NFConnection conn = new NFConnection();
+
             // Connesione a security World
-            SecurityWorld sw = new SecurityWorld(new ConsoleCallBack());
+            SecurityWorld sw = new SecurityWorld(conn, new ConsoleCallBack());
 
             // Elenco chiavi
             Key[] keys = sw.listKeys("simple");
@@ -102,9 +105,6 @@ public class HSMfeature {
             if (sw.isRecoveryEnabled()) {
                 log.info("Security world has key recovery enabled.");
             }
-
-            // Connessione diretta per comandi
-            NFConnection conn = new NFConnection(NFConnection.flags_Privileged);
 
             // NoOp
             M_Cmd_Args_NoOp commandArgsNoOp = new M_Cmd_Args_NoOp(modules[0].getID());
@@ -136,29 +136,16 @@ public class HSMfeature {
             M_KeyGenParams params = new M_KeyGenParams(M_KeyType.Rijndael, new M_KeyType_GenParams_Random(32));
             Key rijndael = kg.generateKey(params, "keyname", "appname", "ident", null, module, null, null);
             log.debug("Rijndael Key : [{}]", mapParameter(rijndael.getData()));
-
-            // Encrypt del dato
-            byte[] crypt = null;
-            try {
-                EasyConnection easyConnection = new EasyConnection(conn);
-                crypt = easyConnection.SymmetricCrypt(M_ChannelMode.Encrypt,
-                        rijndael.getKeyID(module),
-                        M_Mech.RijndaelmECBpPKCS5,
-                        "ciao".getBytes(),
-                        null,
-                        null,
-                        true,
-                        false);
-            } catch (NFException nFException) {
-                log.info("NFException", nFException);
-            }
+       
             // Encrypt del dato
             byte[] aescrypt = aesEncrypt(conn, rijndael, "QuestoStreamDeveEssereCifrato".getBytes());
             log.debug("Crypt[{}]", aescrypt);
 
-            byte[] aesdecrypt = aesDecrypt(conn, k, crypt);
-            log.debug("Derypt[{}]", aesdecrypt);
-
+/*
+            byte[] aesdecrypt = aesDecrypt(conn, k, aescrypt);
+            log.debug("Decrypt[{}]", aesdecrypt);
+            log.debug("Decrypt[{}]", new String(aesdecrypt));
+*/
         } catch (NFException nFException) {
             log.info("NFException", nFException);
         }
