@@ -14,41 +14,33 @@ import com.ncipher.km.nfkm.SecurityWorld;
 import com.ncipher.km.nfkm.Slot;
 import com.ncipher.km.nfkm.SoftCard;
 import com.ncipher.nfast.NFException;
-import com.ncipher.nfast.connect.ClientException;
-import com.ncipher.nfast.connect.CommandTooBig;
-import com.ncipher.nfast.connect.ConnectionClosed;
 import com.ncipher.nfast.connect.NFConnection;
-import com.ncipher.nfast.connect.StatusNotOK;
 import com.ncipher.nfast.marshall.M_Act_Details_OpPermissions;
 import com.ncipher.nfast.marshall.M_ByteBlock;
+import com.ncipher.nfast.marshall.M_CipherText;
 import com.ncipher.nfast.marshall.M_Cmd;
+import com.ncipher.nfast.marshall.M_Cmd_Args_Decrypt;
+import com.ncipher.nfast.marshall.M_Cmd_Args_Encrypt;
 import com.ncipher.nfast.marshall.M_Cmd_Args_GenerateKeyPair;
 import com.ncipher.nfast.marshall.M_Cmd_Args_GetApplianceTime;
 import com.ncipher.nfast.marshall.M_Cmd_Args_GetApplianceVersion;
 import com.ncipher.nfast.marshall.M_Cmd_Args_NVMemList;
 import com.ncipher.nfast.marshall.M_Cmd_Args_NoOp;
-import com.ncipher.nfast.marshall.M_Command;
-import com.ncipher.nfast.marshall.M_Reply;
-import com.ncipher.nfast.marshall.M_Status;
-import com.ncipher.nfast.marshall.M_Cmd_Args_Encrypt;
+import com.ncipher.nfast.marshall.M_Cmd_Reply_Decrypt;
 import com.ncipher.nfast.marshall.M_Cmd_Reply_Encrypt;
+import com.ncipher.nfast.marshall.M_Command;
+import com.ncipher.nfast.marshall.M_KeyGenParams;
+import com.ncipher.nfast.marshall.M_KeyType;
+import com.ncipher.nfast.marshall.M_KeyType_GenParams_Random;
 import com.ncipher.nfast.marshall.M_Mech;
 import com.ncipher.nfast.marshall.M_Mech_Cipher_Generic128;
 import com.ncipher.nfast.marshall.M_PlainText;
 import com.ncipher.nfast.marshall.M_PlainTextType;
 import com.ncipher.nfast.marshall.M_PlainTextType_Data_Bytes;
+import com.ncipher.nfast.marshall.M_Reply;
+import com.ncipher.nfast.marshall.M_Status;
 import com.ncipher.nfast.marshall.Marshallable;
 import com.ncipher.nfast.marshall.PrintoutContext;
-import com.ncipher.nfast.connect.utils.EasyConnection;
-import com.ncipher.nfast.marshall.M_ChannelMode;
-import com.ncipher.nfast.marshall.M_CipherText;
-import com.ncipher.nfast.marshall.M_Cmd_Args_Decrypt;
-import com.ncipher.nfast.marshall.M_Cmd_Reply_Decrypt;
-import com.ncipher.nfast.marshall.M_IV;
-import com.ncipher.nfast.marshall.M_KeyGenParams;
-import com.ncipher.nfast.marshall.M_KeyType;
-import com.ncipher.nfast.marshall.M_KeyType_GenParams_Random;
-import com.ncipher.nfast.marshall.MarshallTypeError;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
 import java.util.Arrays;
@@ -61,6 +53,8 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class HSMfeature {
+
+    int moduleNumber = 2;
 
     public static void main(String[] args) {
         HSMfeature hSMfeature = new HSMfeature();
@@ -124,7 +118,7 @@ public class HSMfeature {
 
             // Genera una chiave RSA
             KeyGenerator kg = sw.getKeyGenerator();
-            Module module = sw.getModule(1);
+            Module module = sw.getModule(moduleNumber);
             Key k = kg.generateRSA(2048, "rsakey11", "simple", "rsakey", null, module, null, true);
             log.debug("RSA public key : [{}]", mapParameter(k.exportPublic()));
 
@@ -136,16 +130,14 @@ public class HSMfeature {
             M_KeyGenParams params = new M_KeyGenParams(M_KeyType.Rijndael, new M_KeyType_GenParams_Random(32));
             Key rijndael = kg.generateKey(params, "keyname", "appname", "ident", null, module, null, null);
             log.debug("Rijndael Key : [{}]", mapParameter(rijndael.getData()));
-       
+
             // Encrypt del dato
             byte[] aescrypt = aesEncrypt(conn, rijndael, "QuestoStreamDeveEssereCifrato".getBytes());
             log.debug("Crypt[{}]", aescrypt);
 
-/*
-            byte[] aesdecrypt = aesDecrypt(conn, k, aescrypt);
+            byte[] aesdecrypt = aesDecrypt(conn, rijndael, aescrypt);
             log.debug("Decrypt[{}]", aesdecrypt);
             log.debug("Decrypt[{}]", new String(aesdecrypt));
-*/
         } catch (NFException nFException) {
             log.info("NFException", nFException);
         }
