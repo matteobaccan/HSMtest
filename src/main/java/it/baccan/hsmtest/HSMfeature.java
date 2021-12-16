@@ -42,10 +42,20 @@ import com.ncipher.nfast.marshall.M_Reply;
 import com.ncipher.nfast.marshall.M_Status;
 import com.ncipher.nfast.marshall.Marshallable;
 import com.ncipher.nfast.marshall.PrintoutContext;
+import com.ncipher.provider.km.KMRSAPrivateKey;
+import com.ncipher.provider.km.KMRSAPublicKey;
+import com.ncipher.provider.km.nCipherKM;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.Security;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -65,7 +75,7 @@ public class HSMfeature {
 
         try {
             // Connessione diretta per comandi
-            NFConnection conn = new NFConnection();
+            NFConnection conn = nCipherKM.getConnection();
 
             // Connesione a security World
             SecurityWorld sw = new SecurityWorld(conn, new ConsoleCallBack());
@@ -76,7 +86,11 @@ public class HSMfeature {
             Arrays.asList(modules).forEach(module -> {
                 log.info(module.toString());
                 // Elenco chiavi
-                printKeys(sw, module);
+                try {
+                    printKeys(sw, module);
+                } catch (NFException nFException) {
+                    log.error("FException", nFException);
+                }
                 // Slot
                 Slot[] slots = module.getSlots();
                 log.info(" Slots:" + slots.length);
@@ -131,11 +145,13 @@ public class HSMfeature {
             log.debug("Rijndael Key : [{}]", mapParameter(rijndael.getData()));
 
             // Encrypt del dato
-            byte[] aescrypt = aesEncrypt(conn, rijndael, "QuestoStreamDeveEssereCifrato".getBytes());
+            final String datoDaCifrare = "QuestoStreamDeveEssereCifrato";
+            byte[] aescrypt = aesEncrypt(conn, rijndael, datoDaCifrare.getBytes());
             log.debug("Crypt[{}]", aescrypt);
 
             byte[] aesdecrypt = aesDecrypt(conn, rijndael, rijndael.mergeKeyIDs(), aescrypt);
             log.debug("Decrypt[{}]", new String(aesdecrypt));
+            log.debug("Verifica[{}]", new String(aesdecrypt).equals(datoDaCifrare));
 
             // Carico le chiavi nel secondo modulo
             Module module2 = sw.getModule(2);
@@ -173,8 +189,24 @@ public class HSMfeature {
             aesdecrypt = aesDecrypt(conn, rijndael, rijndael.getKeyID(module2), aescrypt);
             log.debug("Decrypt[{}]", new String(aesdecrypt));
 
-        } catch (NFException nFException) {
-            log.info("NFException", nFException);
+            /*
+            // Cifratura RSA
+            Security.addProvider(new nCipherKM());
+            //Signature dsa = Signature.getInstance("SHA256withDSA", Security.getProvider("nCipherKM"));
+            KMRSAPrivateKey kPrivate = new KMRSAPrivateKey(rijndael);
+            Signature dsa = Signature.getInstance("SHA1withRSA");
+            dsa.initSign(kPrivate);
+            dsa.update(datoDaCifrare.getBytes());
+            byte[] sig = dsa.sign();
+
+            KMRSAPublicKey kPublic = new KMRSAPublicKey(rijndael);
+            dsa = Signature.getInstance("SHA1withRSA");
+            dsa.initVerify(kPublic);
+            log.debug("Check Decrypt[{}]", dsa.verify(sig));
+            */
+            // | NoSuchAlgorithmException | InvalidKeyException | SignatureException 
+        } catch (NFException ex) {
+            log.error("Exception", ex);
         }
 
         log.info("End test");
@@ -214,7 +246,14 @@ public class HSMfeature {
     private void printKeys(final SecurityWorld sw, final Module module) throws NFException {
         Key[] keys = sw.listKeys("simple");
         log.info("Keys:" + keys.length);
-        Arrays.asList(keys).forEach(key -> printKey(key, module));
+        Arrays.asList(keys).forEach(key -> {
+            try {
+                printKey(key, module);
+            } catch (NFException nFException) {
+                log.error("FException", nFException);
+            }
+        }
+        );
     }
 
     private void printKey(final Key key, final Module module) throws NFException {
