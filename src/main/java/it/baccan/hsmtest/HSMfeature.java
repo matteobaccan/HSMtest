@@ -30,6 +30,7 @@ import com.ncipher.nfast.marshall.M_Cmd_Reply_Decrypt;
 import com.ncipher.nfast.marshall.M_Cmd_Reply_Encrypt;
 import com.ncipher.nfast.marshall.M_Command;
 import com.ncipher.nfast.marshall.M_KeyGenParams;
+import com.ncipher.nfast.marshall.M_KeyID;
 import com.ncipher.nfast.marshall.M_KeyType;
 import com.ncipher.nfast.marshall.M_KeyType_GenParams_Random;
 import com.ncipher.nfast.marshall.M_Mech;
@@ -54,8 +55,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class HSMfeature {
 
-    int moduleNumber = 2;
-
     public static void main(String[] args) {
         HSMfeature hSMfeature = new HSMfeature();
         hSMfeature.run();
@@ -71,16 +70,14 @@ public class HSMfeature {
             // Connesione a security World
             SecurityWorld sw = new SecurityWorld(conn, new ConsoleCallBack());
 
-            // Elenco chiavi
-            Key[] keys = sw.listKeys("simple");
-            log.info("Keys:" + keys.length);
-            Arrays.asList(keys).forEach(key -> log.info(key.toString()));
-
             // Elenco moduli
             Module[] modules = sw.getModules();
             log.info("Modules:" + modules.length);
             Arrays.asList(modules).forEach(module -> {
                 log.info(module.toString());
+                // Elenco chiavi
+                printKeys(sw, module);
+                // Slot
                 Slot[] slots = module.getSlots();
                 log.info(" Slots:" + slots.length);
                 Arrays.asList(slots).forEach(slot -> log.info(" {}", mapParameter(slot.getData())));
@@ -100,44 +97,82 @@ public class HSMfeature {
                 log.info("Security world has key recovery enabled.");
             }
 
+            // Preparo il modulo 1
+            Module module1 = sw.getModule(1);
+
             // NoOp
-            M_Cmd_Args_NoOp commandArgsNoOp = new M_Cmd_Args_NoOp(modules[0].getID());
+            M_Cmd_Args_NoOp commandArgsNoOp = new M_Cmd_Args_NoOp(module1.getID());
             sendCommand("NoOp", conn, new M_Command(M_Cmd.NoOp, 0, commandArgsNoOp));
 
             // MemList
-            M_Cmd_Args_NVMemList commandArgsNVMemList = new M_Cmd_Args_NVMemList(modules[0].getID(), 0);
+            M_Cmd_Args_NVMemList commandArgsNVMemList = new M_Cmd_Args_NVMemList(module1.getID(), 0);
             sendCommand("NVMMemList", conn, new M_Command(M_Cmd.NVMemList, 0, commandArgsNVMemList));
 
             // ListRemoteSlot
-            M_Cmd_Args_GetApplianceTime commandArgsGetApplianceTime = new M_Cmd_Args_GetApplianceTime(modules[0].getID(), 0);
+            M_Cmd_Args_GetApplianceTime commandArgsGetApplianceTime = new M_Cmd_Args_GetApplianceTime(module1.getID(), 0);
             sendCommand("GetApplianceTime", conn, new M_Command(M_Cmd.GetApplianceTime, 0, commandArgsGetApplianceTime));
 
             // Version HSM
-            M_Cmd_Args_GetApplianceVersion commandArgsGetApplianceVersion = new M_Cmd_Args_GetApplianceVersion(modules[0].getID());
+            M_Cmd_Args_GetApplianceVersion commandArgsGetApplianceVersion = new M_Cmd_Args_GetApplianceVersion(module1.getID());
             sendCommand("GetApplianceVersion", conn, new M_Command(M_Cmd.GetApplianceVersion, 0, commandArgsGetApplianceVersion));
 
             // Genera una chiave RSA
             KeyGenerator kg = sw.getKeyGenerator();
-            Module module = sw.getModule(moduleNumber);
-            Key k = kg.generateRSA(2048, "rsakey11", "simple", "rsakey", null, module, null, true);
+            Key k = kg.generateRSA(2048, "rsakey11", "simple", "rsakey", null, module1, null, true);
             log.debug("RSA public key : [{}]", mapParameter(k.exportPublic()));
 
             // Genera una chiave DES
-            Key kDES = kg.generateDES("deskey11", module, null);
+            Key kDES = kg.generateDES("deskey11", module1, null);
             log.debug("DES Key : [{}]", mapParameter(kDES.getData()));
 
             // Genera una chiave per l'encryption
             M_KeyGenParams params = new M_KeyGenParams(M_KeyType.Rijndael, new M_KeyType_GenParams_Random(32));
-            Key rijndael = kg.generateKey(params, "keyname", "appname", "ident", null, module, null, null);
+            Key rijndael = kg.generateKey(params, "keyname", "simple", "ident", null, module1, null, null);
             log.debug("Rijndael Key : [{}]", mapParameter(rijndael.getData()));
 
             // Encrypt del dato
             byte[] aescrypt = aesEncrypt(conn, rijndael, "QuestoStreamDeveEssereCifrato".getBytes());
             log.debug("Crypt[{}]", aescrypt);
 
-            byte[] aesdecrypt = aesDecrypt(conn, rijndael, aescrypt);
-            log.debug("Decrypt[{}]", aesdecrypt);
+            byte[] aesdecrypt = aesDecrypt(conn, rijndael, rijndael.mergeKeyIDs(), aescrypt);
             log.debug("Decrypt[{}]", new String(aesdecrypt));
+
+            // Carico le chiavi nel secondo modulo
+            Module module2 = sw.getModule(2);
+            printKey(k, module1);
+            printKey(k, module2);
+            k.load(module2);
+            printKey(k, module2);
+
+            printKey(kDES, module1);
+            printKey(kDES, module2);
+            kDES.load(module2);
+            printKey(kDES, module2);
+
+            // Chiave solo sul primo HSM
+            printKey(rijndael, module1);
+            printKey(rijndael, module2);
+            aesdecrypt = aesDecrypt(conn, rijndael, rijndael.getKeyID(module1), aescrypt);
+            log.debug("Decrypt[{}]", new String(aesdecrypt));
+
+            // Errore perchè la chiave non è caricata sul secondo modulo
+            try {
+                aesdecrypt = aesDecrypt(conn, rijndael, rijndael.getKeyID(module2), aescrypt);
+                log.debug("Decrypt[{}]", new String(aesdecrypt));
+            } catch (Throwable throwable) {
+                log.debug("E' corretto ci sia un errore");
+                log.info("Throwable", throwable);
+            }
+            // Descript con la mergedKeyIDs
+            aesdecrypt = aesDecrypt(conn, rijndael, rijndael.mergeKeyIDs(), aescrypt);
+            log.debug("Decrypt[{}]", new String(aesdecrypt));
+
+            // Carico sul secondo mulo
+            rijndael.load(module2);
+            printKey(rijndael, module2);
+            aesdecrypt = aesDecrypt(conn, rijndael, rijndael.getKeyID(module2), aescrypt);
+            log.debug("Decrypt[{}]", new String(aesdecrypt));
+
         } catch (NFException nFException) {
             log.info("NFException", nFException);
         }
@@ -174,6 +209,35 @@ public class HSMfeature {
             printWriter.flush();
             return byteArrayOutputStream.toString();
         }).orElse("").trim();
+    }
+
+    private void printKeys(final SecurityWorld sw, final Module module) throws NFException {
+        Key[] keys = sw.listKeys("simple");
+        log.info("Keys:" + keys.length);
+        Arrays.asList(keys).forEach(key -> printKey(key, module));
+    }
+
+    private void printKey(final Key key, final Module module) throws NFException {
+        log.info("Name[{}]"
+                + " APP [{}]"
+                + " Ident[{}]"
+                + " Created[{}]"
+                + " APP desc[{}]"
+                + " KeyId[{}]"
+                + " PublicKeyId[{}]"
+                + " MergeKeyId[{}]"
+                + " info [{}]"
+                + " Extrainfo[{}]",
+                key.getName(),
+                key.getAppName(),
+                key.getIdent(),
+                key.getCreationDate(),
+                key.getAppDescription(),
+                key.getKeyID(module),
+                key.getPublicKeyID(module),
+                mapParameter(key.mergeKeyIDs()),
+                key.toString(),
+                key.getExtraInfo().trim());
     }
 
     /*
@@ -224,11 +288,11 @@ public class HSMfeature {
         return ((M_Mech_Cipher_Generic128) ((M_Cmd_Reply_Encrypt) rep.reply).cipher.data).cipher.value;
     }
 
-    public byte[] aesDecrypt(final NFConnection conn, Key key, byte[] ciphertext) throws NFException {
+    public byte[] aesDecrypt(final NFConnection conn, final Key key, final M_KeyID mKeyId, final byte[] ciphertext) throws NFException {
         M_Command cmd = new M_Command();
         cmd.cmd = M_Cmd.Decrypt;
         M_Cmd_Args_Decrypt args = new M_Cmd_Args_Decrypt();
-        args.key = key.mergeKeyIDs();
+        args.key = mKeyId;
         args.mech = M_Mech.RijndaelmECBpPKCS5;
         args.reply_type = M_PlainTextType.Bytes;
         args.cipher = new M_CipherText();
