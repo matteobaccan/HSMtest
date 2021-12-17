@@ -65,6 +65,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class HSMfeature {
 
+    int moduleNumber = 2;
+
     public static void main(String[] args) {
         HSMfeature hSMfeature = new HSMfeature();
         hSMfeature.run();
