@@ -18,7 +18,7 @@
             <artifactId>ncipher</artifactId>
             <version>1.0</version>
             <scope>system</scope>
-            <systemPath>C:/Program Files (x86)/nCipher/nfast/java/classes/nCipherKM.jar</systemPath>
+            <systemPath>C:/Program Files/nCipher/nfast/java/classes/nCipherKM.jar</systemPath>
         </dependency>
         <!-- https://mvnrepository.com/artifact/org.projectlombok/lombok -->
         <dependency>

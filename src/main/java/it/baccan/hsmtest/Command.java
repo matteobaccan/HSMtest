@@ -17,8 +17,13 @@ import com.ncipher.nfast.marshall.M_Reply;
 import com.ncipher.nfast.marshall.M_Status;
 
 /**
+ * Questa classe mostra il minimo necessario per lanciare un comando su un HSM e
+ * ricevere una risposta. In questo caso, usiamo il comando M_Cmd.NoOp, che
+ * riceve unicamente una conferma di esecuzione e il comando M_Cmd.CheckWorld,
+ * che riceve una risposta di tipo M_Cmd_Reply_CheckWorld da cui possiamo
+ * estrarre informazioni.
  *
- * @author Administrator
+ * @author Michele Costabile
  */
 public class Command {
 
