@@ -42,20 +42,11 @@ import com.ncipher.nfast.marshall.M_Reply;
 import com.ncipher.nfast.marshall.M_Status;
 import com.ncipher.nfast.marshall.Marshallable;
 import com.ncipher.nfast.marshall.PrintoutContext;
-import com.ncipher.provider.km.KMRSAPrivateKey;
-import com.ncipher.provider.km.KMRSAPublicKey;
 import com.ncipher.provider.km.nCipherKM;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.security.Security;
-import java.security.Signature;
-import java.security.SignatureException;
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -205,8 +196,8 @@ public class HSMfeature {
             dsa = Signature.getInstance("SHA1withRSA");
             dsa.initVerify(kPublic);
             log.debug("Check Decrypt[{}]", dsa.verify(sig));
-            */
-            // | NoSuchAlgorithmException | InvalidKeyException | SignatureException 
+             */
+            // | NoSuchAlgorithmException | InvalidKeyException | SignatureException
         } catch (NFException ex) {
             log.error("Exception", ex);
         }
@@ -277,7 +268,7 @@ public class HSMfeature {
                 key.getKeyID(module),
                 key.getPublicKeyID(module),
                 mapParameter(key.mergeKeyIDs()),
-                key.toString(),
+                key,
                 key.getExtraInfo().trim());
     }
 

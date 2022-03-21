@@ -11,8 +11,10 @@ import com.ncipher.km.nfkm.SecurityWorld;
 import com.ncipher.nfast.NFException;
 
 /**
+ * Esempio di classe che esercita il modulo top level, il security world
+ * estraendo alcune informazioni globali
  *
- * @author Administrator
+ * @author Michele Costabile
  */
 public class SecWorld {
 
@@ -26,10 +28,14 @@ public class SecWorld {
             for (int i = 0; i < keys.length; i++) {
                 System.out.format("chiave %d, nome %s\n", i, keys[i].getName());
             }
+            System.out.println(" ");
             Module[] modules = sw.getModules();
             System.out.println("There are " + modules.length + " HSMs available.");
             for (int i = 0; i < modules.length; i++) {
-                System.out.format("chiave %d, ESN %s\n", i, modules[i].getESN());
+                Module mod = modules[i];
+                System.out.format("chiave %d, ESN %s ", i, mod.getESN());
+                System.out.format(mod.isHaModule() ? "modulo ha " : "modulo non ha ");
+                System.out.format("\n");
             }
             if (sw.isRecoveryEnabled()) {
                 System.out.println("Security world has key recovery enabled.");
